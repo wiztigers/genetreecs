@@ -8,7 +8,7 @@ implementation, and code would be a mess if I put everything in partial class or
 So we'll keep a `Node` at the top as with my first implementation, but it will become abstract.
 
 If I don't want to clutter the sourcecode with incessant casts each time I want to access the `CodeElement`
-data of a node, it seems I can use generics. So each node will be "nicely" genericized with its data type,
+data of a node, it seems I can use generics. So each node would be "nicely" genericized with its data type,
 thus typing it strongly.
 
 However, we have many cases when a node has to be manipulated independently from its type: a visitor 
@@ -37,7 +37,7 @@ So, we use a custom method that will do the work the language cannot figure how 
 our properties ourselves. However, as C# doesn't allow multiple inheritance (；¬＿¬), and as 
 `Node<T>`'s a hierarchy tree is already cluttered enough, we must use an interface.
 And as C# doesn't allow interface to provide implementation for their methods (*￣m￣), we have
-to use a method extension and a marker interface, which is a PITA but at least does the job.
+to use a methods extension, which is a PITA but at least does the job.
 
 
 

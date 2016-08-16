@@ -2,54 +2,37 @@
 
 
 
-public interface Node {
+public abstract class Node {
+
+	/// <summary>CodeElement data (weakly-typed)</summary>
+	public CodeElement CodeElement { get; private set; }
+	public Node(CodeElement CodeElement) { this.CodeElement = CodeElement; }
+
 	/// <summary>Parent node (weakly-typed)</summary>
-	Node Parent { get; }
-	/// <summary>List of children nodes (weakly-typed, read-only)</summary>
-	IReadOnlyList<Node> Children { get; }
-
-	/// <summary>Adds a node as a children of this one.</summary>
-	/// <typeparam name="T">Class (derived from CodeElement) of the child to-be.</typeparam>
-	/// <param name="node">Child to-be.</param>
-	void Add<T>(Node<T> node) where T:CodeElement;
-	/// <summary>Removes a child from this node.</summary>
-	/// <typeparam name="T">Class (derived from CodeElement) of the child node.</typeparam>
-	/// <param name="node">Child to remove. If this is not one of this Node's current children, nothing happens.</param>
-	void Remove<T>(Node<T> node) where T:CodeElement;
-	/// <summary>Removes this node from its Parent's children list and set this.Parent to null.</summary>
-	void Remove();
-
-	/// <summary>Unique identifier of this Node in its tree.</summary>
-	string URI { get; }
-	/// <summary>Retrieves this Node or one of its (in)direct children using a node URI.</summary>
-	/// <param name="uri">Node unique identifier.</param>
-	/// <returns>The Node n with n.URI.EndsWith(uri), or null if there is no such Node.</returns>
-	Node Get(string uri);
-
-	void Dump(System.Text.StringBuilder str, int i);
-}
-public abstract class Node<T>: Node where T:CodeElement {
-
-	public T CodeElement;
-	public Node(T ce) { CodeElement = ce; }
-
 	public Node Parent { get; private set; }
 	protected List<Node> children = new List<Node>();
-	/// <summary>List of children. If you want to modify it, use the Add and Remove methods.</summary>
+	/// <summary>List of children  (weakly-typed, read-only).</summary>
+	///	If you want to modify this list, use the <see cref="Add"/> and <see cref="Remove"/> methods.
 	public IReadOnlyList<Node> Children { get { return children.AsReadOnly(); } }
 
-	public void Add<T>(Node<T> node) where T:CodeElement {
+	/// <summary>Adds a node as a children of this one.</summary>
+	/// <param name="node">Child to-be.</param>
+	public void Add(Node node) {
 		children.Add(node);
 		node.Parent = this;
 	}
-	public void Remove<T>(Node<T> node) where T:CodeElement {
+	/// <summary>Removes a child from this node.</summary>
+	/// <param name="node">Child to remove. If this is not one of this Node's current children, nothing happens.</param>
+	public void Remove(Node node) {
 		children.Remove(node);
 		node.Parent = null;
 	}
+	/// <summary>Removes this node from its Parent's children list and set this.Parent to null.</summary>
 	public void Remove() {
 		if (Parent != null) Parent.Remove(this);
 	}
 
+	/// <summary>Unique identifier of this Node in its tree.</summary>
 	public virtual string ID { get { return null; } }
 	public string URI {
 		get {
@@ -59,9 +42,9 @@ public abstract class Node<T>: Node where T:CodeElement {
 			return puri+'.'+ID;
 		}
 	}
-	/// <summary>Get this node or one of its children that has a given URI.</summary>
-	/// <param name="uri">Node unique identifier to search for</param>
-	/// <returns>Node n for which n.URI == uri, or null if no such Node was found</returns>
+	/// <summary>Retrieves this Node or one of its (in)direct children using a node URI.</summary>
+	/// <param name="uri">Node unique identifier.</param>
+	/// <returns>The Node n with n.URI.EndsWith(uri), or null if there is no such Node.</returns>
 	public Node Get(string uri) {
 		if (URI != null && URI.EndsWith(uri)) return this;
 		foreach(var child in Children) {
@@ -83,9 +66,7 @@ public abstract class Node<T>: Node where T:CodeElement {
 		Dump(str, 0);
 		return str.ToString();
 	}
-	// and what if I DON'T want to put Dump(..) inside the Node interface? T_T
-	// Dump(..) should be private !!
-	public void Dump(System.Text.StringBuilder str, int i) {
+	private void Dump(System.Text.StringBuilder str, int i) {
 		for (int c=0; c<i; c++) str.Append("  ");
 		if (CodeElement == null) str.AppendLine("?");
 		else str.AppendLine(CodeElement.ToString());
@@ -93,13 +74,26 @@ public abstract class Node<T>: Node where T:CodeElement {
 	}
 }
 /// <summary>Root Node of a tree of Nodes.</summary>
-public class Root: Node<CodeElement> {
+public class Root: Node, CodeElementHolder<CodeElement> {
 	public Root(): base(null) { }
 }
 
 
 
 
+
+public interface CodeElementHolder<T> where T:CodeElement { }
+public static class CodeElementHolderExtension {
+	/// <summary>CodeElement data (strongly-typed)</summary>
+	/// <typeparam name="T">Class (derived from <see cref="CodeElement"/>) of the data.</typeparam>
+	/// <param name="holder">We want this <see cref="Node"/>'s data.</param>
+	/// <returns>This <see cref="Node"/>'s CodeElement data, but strongly-typed.</returns>
+	public static T CodeElement<T>(this CodeElementHolder<T> holder) where T:CodeElement {
+		var node = holder as Node;
+		if (node == null) throw new System.ArgumentException("CodeElementHolder must be a Node.");
+		return (T)node.CodeElement;
+    }
+}
 
 /// <summary>A <see cref="Node"/> who can type its parent more strongly should inherit from this.</summary>
 /// <typeparam name="C">Class (derived from <see cref="Node{T}"/>) of the parent node.</typeparam>
@@ -157,19 +151,25 @@ class Program {
 		this.Current = this.Root;
 	}
 
-	public void Enter<T>(Node<T> node) where T:CodeElement {
+	public void Enter(Node node) {
 		Current.Add(node);
 		Current = node;
 	}
 	public void Exit() {
+		OnNode(Current);
 		Current = Current.Parent;
+	}
+
+	private void OnNode(Node node) {
+		var holder = node as CodeElementHolder<TypeDefinitionEntry>;
+		if (holder != null) System.Console.WriteLine("Found 1 typedef: "+holder.CodeElement().Size);
 	}
 
 	static void Main(string[] args) {
 		var program = new Program();
 	program.Enter(new DataDivision(new DataDivisionHeader()));
 		program.Enter(new WorkingStorageSection(new WorkingStorageSectionHeader()));
-			program.Enter(new TypeDescription(new TypeDescriptionEntry { Level = 1, Name = "POINT2D" }));
+			program.Enter(new TypeDescription(new TypeDefinitionEntry { Level = 1, Name = "POINT2D", Size = 2 }));
 				program.Enter(new DataDescription(new DataDescriptionEntry { Level =  2, Name = "x" })); program.Exit();
 				program.Enter(new DataDescription(new DataDescriptionEntry { Level = 2, Name = "y" })); program.Exit();
 			program.Exit();
@@ -185,7 +185,7 @@ class Program {
 			program.Enter(new DataDescription(new DataDescriptionEntry { Level = 1, Name = "z" })); program.Exit();
 			program.Enter(new DataCondition(new DataConditionEntry { Level = 88, Name = "b" })); program.Exit();
 			program.Enter(new DataCondition(new DataConditionEntry { Level = 88, Name = "c" })); program.Exit();
-			program.Enter(new TypeDescription(new TypeDescriptionEntry { Level = 1, Name = "POINT3D" }));
+			program.Enter(new TypeDescription(new TypeDefinitionEntry { Level = 1, Name = "POINT3D", Size = 3 }));
 				program.Enter(new DataDescription(new DataDescriptionEntry { Level =  2, Name = "x" })); program.Exit();
 				program.Enter(new DataDescription(new DataDescriptionEntry { Level = 2, Name = "y" })); program.Exit();
 				program.Enter(new DataDescription(new DataDescriptionEntry { Level =  2, Name = "z" })); program.Exit();

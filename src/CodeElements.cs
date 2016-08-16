@@ -16,6 +16,6 @@ public class DataDescriptionEntry: DataDefinitionEntry {
 	public string Picture { get; set; }
 }
 public class DataConditionEntry: DataDefinitionEntry { }
-public class TypeDescriptionEntry: DataDefinitionEntry {
+public class TypeDefinitionEntry: DataDefinitionEntry {
 	public int Size { get; set; }
 }
